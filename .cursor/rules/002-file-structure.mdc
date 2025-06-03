@@ -1,0 +1,50 @@
+---
+description: The file structure of this project.
+globs: 
+alwaysApply: false
+---
+# SmashMate Project Structure
+
+## Root Directory
+- `app/` - Main application code
+- `tests/` - Test files
+- `docs/` - Documentation
+- `alembic/` - Database migration files
+- `.venv/` - Python virtual environment
+- `.cursor/` - Cursor IDE configuration
+- `.git/` - Git repository
+
+## Configuration Files
+- `pyproject.toml` - Python project configuration
+- `alembic.ini` - Alembic database migration configuration
+- `docker-compose.yml` - Docker services configuration
+- `.pre-commit-config.yaml` - Pre-commit hooks configuration
+- `Makefile` - Build and development commands
+- `.gitignore` - Git ignore rules
+- `.python-version` - Python version specification
+
+## Application Structure (`app/`)
+- `main.py` - Application entry point
+- `api/` - API endpoints and routes
+- `core/` - Core application configuration
+- `db/` - Database connection and session management
+- `models/` - Database models
+- `schemas/` - Pydantic schemas for data validation
+- `services/` - Business logic and services
+- `utils/` - Utility functions and helpers
+
+## Development Guidelines
+1. Keep related code in appropriate directories
+2. Follow the established project structure
+3. Use appropriate file naming conventions
+4. Maintain separation of concerns between different components
+
+## Testing
+- Place all test files in the `tests/` directory
+- Follow the same structure as the main application
+- Use pytest for testing
+
+## Documentation
+- Keep documentation up to date in the `docs/` directory
+- Include docstrings for all functions and classes
+- Document API endpoints and their usage

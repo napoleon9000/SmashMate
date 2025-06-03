@@ -1,0 +1,135 @@
+---
+description: The schema and RLS policy of the database
+globs: 
+alwaysApply: false
+---
+## Main Table Structure
+-- 2.1 用户扩展档案
+create table profiles (
+  user_id uuid primary key references auth.users on delete cascade,
+  display_name text,
+  avatar_url text,
+  default_venue uuid references venues(id)
+);
+
+-- 2.2 场馆（支持地理搜索）
+create extension if not exists postgis;
+create table venues (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  location geography(point, 4326) not null, -- lat/lon
+  address text,
+  created_by uuid references auth.users
+);
+create index venues_location_idx on venues using gist(location);
+
+-- 2.3 关注
+create table follows (
+  follower uuid references auth.users on delete cascade,
+  followee uuid references auth.users on delete cascade,
+  created_at timestamp default now(),
+  primary key (follower, followee)
+);
+
+-- 2.4 双打“固定组合”与个人/组合评分
+create table teams (
+  id uuid primary key default gen_random_uuid(),
+  player_a uuid not null,
+  player_b uuid not null,
+  mu numeric not null,
+  sigma numeric not null,
+  games_played int default 0,
+  unique (least(player_a, player_b), greatest(player_a, player_b))
+);
+
+create table player_ratings (
+  player_id uuid primary key references auth.users on delete cascade,
+  mu numeric not null,
+  sigma numeric not null,
+  games_played int default 0
+);
+
+-- 2.5 比赛与参与人
+create type match_status as enum ('confirmed','pending');
+
+create table matches (
+  id uuid primary key default gen_random_uuid(),
+  venue_id uuid references venues(id),
+  played_at timestamptz not null,
+  created_by uuid references auth.users,
+  scores jsonb not null,            -- [{set:1,team1:21,team2:17}, ...]
+  status match_status default 'confirmed',
+  version int default 1             -- optimistic lock
+);
+
+create table match_players (
+  match_id uuid references matches(id) on delete cascade,
+  player_id uuid references auth.users,
+  team smallint check (team in (1,2)),
+  is_winner bool,
+  primary key (match_id, player_id)
+);
+create index mp_player_idx on match_players(player_id);
+
+-- 2.6 “匹配度”物化视图（定时或触发器刷新）
+create materialized view compatibility as
+select
+  least(p1.player_id, p2.player_id) as player_a,
+  greatest(p1.player_id, p2.player_id) as player_b,
+  t.mu                                    as team_mu,
+  ((r1.mu + r2.mu)/2)                     as avg_individual_mu,
+  t.mu - ((r1.mu + r2.mu)/2)              as delta
+from teams t
+join player_ratings r1 on r1.player_id = t.player_a
+join player_ratings r2 on r2.player_id = t.player_b
+join auth.users p1 on p1.id = t.player_a
+join auth.users p2 on p2.id = t.player_b;
+
+create unique index on compatibility(player_a, player_b);
+
+
+## Main Row Level Security Policy
+alter table profiles enable row level security;
+create policy "self profile" on profiles
+  for select using (user_id = auth.uid());
+
+alter table venues enable row level security;
+create policy "public read venues"  on venues for select using (true);
+create policy "create venue"        on venues for insert with check (created_by = auth.uid());
+create policy "edit own venue"      on venues for update using (created_by = auth.uid());
+
+alter table follows enable row level security;
+create policy "follow myself only"  on follows
+  for insert with check (follower = auth.uid());
+create policy "read my follows"     on follows
+  for select using (
+    follower = auth.uid() or followee = auth.uid()
+  );
+
+alter table matches enable row level security;
+-- 参与者或创建者可查看
+create policy "view participants" on matches
+  for select using (
+    exists (
+      select 1 from match_players mp
+      where mp.match_id = id and mp.player_id = auth.uid()
+    )
+  );
+-- 创建者 / 参与者可改（基于 version 锁）
+create policy "edit participants" on matches
+  for update using (
+    exists (
+      select 1 from match_players
+      where match_id = id and player_id = auth.uid()
+    )
+  );
+
+alter table match_players enable row level security;
+create policy "only participants insert" on match_players
+  for insert with check (player_id = auth.uid());
+create policy "participants read" on match_players
+  for select using (
+    player_id = auth.uid() OR
+    exists (select 1 from match_players mp2
+            where mp2.match_id = match_id and mp2.player_id = auth.uid())
+  );
