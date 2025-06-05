@@ -13,19 +13,16 @@ class Settings(BaseSettings):
     # Supabase Local
     LOCAL_SUPABASE_URL: str
     LOCAL_SUPABASE_KEY: str
-    SUPABASE_PASSWORD: str
-    SUPABASE_DB_NAME: str
-    SUPABASE_DB_USER: str
+    LOCAL_SUPABASE_PASSWORD: str
+    LOCAL_SUPABASE_DB_NAME: str
+    LOCAL_SUPABASE_DB_USER: str
     
     # Supabase Remote
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
-    
-    # Database URLs
-    LOCAL_DATABASE_URL: Optional[PostgresDsn] = None
-    REMOTE_DATABASE_URL: Optional[PostgresDsn] = None
-    
+    SUPABASE_PASSWORD: str
+
     # Environment
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
@@ -35,7 +32,11 @@ class Settings(BaseSettings):
     
     # Logging
     LOG_LEVEL: str = "INFO"
-    
+
+    # Generated URL
+    LOCAL_DATABASE_URL: Optional[PostgresDsn] = None
+    REMOTE_DATABASE_URL: Optional[PostgresDsn] = None
+
     @field_validator("LOCAL_DATABASE_URL", mode="before")
     @classmethod
     def assemble_local_db_url(cls, v: Optional[str], info: ValidationInfo) -> str:
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
             port=54322,
             path=f"/{info.data.get('SUPABASE_DB_NAME')}"
         )
-    
+
     @field_validator("REMOTE_DATABASE_URL", mode="before")
     @classmethod
     def assemble_remote_db_url(cls, v: Optional[str], info: ValidationInfo) -> str:

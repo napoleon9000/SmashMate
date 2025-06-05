@@ -3,27 +3,24 @@ name = "smashmate"
 version = "0.1.0"
 description = "Social badminton doubles tracking app"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "sqlalchemy>=2.0.0",
-    "asyncpg>=0.29.0",
-    "alembic>=1.13.0",
-    "pydantic>=2.6.0",
-    "python-dotenv>=1.0.0",
-    "python-json-logger>=2.0.7",
-    "geoalchemy2>=0.14.0",
-    "trueskill>=0.4.5",
-    "shapely>=2.1.1",
-    "httpx>=0.28.1",
+    "fastapi>=0.68.0",
+    "uvicorn>=0.15.0",
+    "sqlalchemy>=1.4.0",
+    "asyncpg>=0.24.0",
+    "pydantic>=1.8.0",
+    "pydantic-settings>=2.0.0",
     "python-jose[cryptography]>=3.3.0",
-    "pytest>=8.3.5",
-    "pytest-asyncio>=1.0.0",
-    "supabase>=2.9.0",
-    "pydantic-settings>=2.9.1",
-    "pytest-cov>=6.1.1",
-    "psycopg2>=2.9.10",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.5",
+    "supabase>=0.0.2",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.18.0",
+    "httpx>=0.23.0",
+    "greenlet>=2.0.0",
+    "geoalchemy2>=0.14.0",
+    "shapely>=2.0.0"  # Required by geoalchemy2
 ]
 
 [project.optional-dependencies]
@@ -57,7 +54,13 @@ line-length = 88
 target-version = ["py311"]
 
 [tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+testpaths = [
+    "tests"
+]
+python_files = [
+    "test_*.py"
+]
 asyncio_mode = "auto"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=app --cov-report=term-missing"

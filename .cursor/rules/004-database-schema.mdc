@@ -4,7 +4,7 @@ globs:
 alwaysApply: false
 ---
 ## Main Table Structure
--- 2.1 用户扩展档案
+-- 2.1 User Profiles
 create table profiles (
   user_id uuid primary key references auth.users on delete cascade,
   display_name text,
@@ -12,7 +12,7 @@ create table profiles (
   default_venue uuid references venues(id)
 );
 
--- 2.2 场馆（支持地理搜索）
+-- 2.2 Venues (with geospatial support)
 create extension if not exists postgis;
 create table venues (
   id uuid primary key default gen_random_uuid(),
@@ -23,7 +23,7 @@ create table venues (
 );
 create index venues_location_idx on venues using gist(location);
 
--- 2.3 关注
+-- 2.3 Follows
 create table follows (
   follower uuid references auth.users on delete cascade,
   followee uuid references auth.users on delete cascade,
@@ -31,7 +31,7 @@ create table follows (
   primary key (follower, followee)
 );
 
--- 2.4 双打“固定组合”与个人/组合评分
+-- 2.4 Teams and Player Ratings
 create table teams (
   id uuid primary key default gen_random_uuid(),
   player_a uuid not null,
@@ -39,7 +39,7 @@ create table teams (
   mu numeric not null,
   sigma numeric not null,
   games_played int default 0,
-  unique (least(player_a, player_b), greatest(player_a, player_b))
+  constraint unique_player_pair check (player_a < player_b)
 );
 
 create table player_ratings (
@@ -49,7 +49,7 @@ create table player_ratings (
   games_played int default 0
 );
 
--- 2.5 比赛与参与人
+-- 2.5 Matches and Players
 create type match_status as enum ('confirmed','pending');
 
 create table matches (
@@ -71,11 +71,11 @@ create table match_players (
 );
 create index mp_player_idx on match_players(player_id);
 
--- 2.6 “匹配度”物化视图（定时或触发器刷新）
+-- 2.6 Compatibility Materialized View
 create materialized view compatibility as
 select
-  least(p1.player_id, p2.player_id) as player_a,
-  greatest(p1.player_id, p2.player_id) as player_b,
+  t.player_a,
+  t.player_b,
   t.mu                                    as team_mu,
   ((r1.mu + r2.mu)/2)                     as avg_individual_mu,
   t.mu - ((r1.mu + r2.mu)/2)              as delta
@@ -86,7 +86,6 @@ join auth.users p1 on p1.id = t.player_a
 join auth.users p2 on p2.id = t.player_b;
 
 create unique index on compatibility(player_a, player_b);
-
 
 ## Main Row Level Security Policy
 alter table profiles enable row level security;
@@ -107,7 +106,6 @@ create policy "read my follows"     on follows
   );
 
 alter table matches enable row level security;
--- 参与者或创建者可查看
 create policy "view participants" on matches
   for select using (
     exists (
@@ -115,7 +113,6 @@ create policy "view participants" on matches
       where mp.match_id = id and mp.player_id = auth.uid()
     )
   );
--- 创建者 / 参与者可改（基于 version 锁）
 create policy "edit participants" on matches
   for update using (
     exists (

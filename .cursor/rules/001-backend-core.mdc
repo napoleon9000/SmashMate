@@ -1,28 +1,32 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
----
-
-name: smashmate\_backend\_core
-
 # This rule should ALWAYS be applied when the AI is working inside the Smash Mate backend.
-Stack: Python 3.11 · uv · FastAPI · SQLAlchemy 2.0 (Async) · Supabase Local Development · PostGIS · Alembic · PyTest · pydantic-settings.
-Architectural constraints: async DB access only, domain logic isolated in `services/`, migrations via Alembic, rating logic uses `trueskill` synchronously inside a DB transaction.
+Stack: Python 3.11 · uv · FastAPI · SQLAlchemy 2.0 (Async) · Supabase Local Development · PostGIS · PyTest · pydantic-settings.
+Architectural constraints: async DB access only, domain logic isolated in `services/`, rating logic uses `trueskill` synchronously inside a DB transaction.
 Security: Supabase JWT auth, explicit RLS checks, no raw SQL string concat.
 ALWAYS follow these rules.
 version: "1.0"
-globs:
-
-* "app/\*\*"
-* "alembic/\*\*"
-* "tests/\*\*"
-  alwaysApply: true
-
----
 
 # Smash Mate Backend – Core Rules
+
+## Use case
+Smash Mate is a social companion app for groups of badminton players who regularly meet at the same venue. After signing in with Google or Apple, a player selects or creates the venue they’re currently in, follows other players who play there, records doubles-match results, and instantly sees updated TrueSkill ratings for each individual and for every fixed pair. By comparing a pair’s team rating with the average of the two players’ individual ratings, the app derives a “compatibility score” that highlights how well the two partners mesh and periodically recommends promising new partners.
+
+## Core functionalties
+	•	User authentication via Google / Apple, profile management, and choice of current venue
+	•	Venue creation, nearby-venue search with geo queries (PostGIS), and venue selection persistence
+	•	Social layer: follow / unfollow other players at the same venue and view mutual followers
+	•	Match recording: pick four followed players, enter scores once, shareable edit access for all participants
+	•	Synchronous TrueSkill computation upon match submission, updating player, team, and history records in one transaction
+	•	Compatibility calculation from player and team ratings, refreshed and stored for quick lookup
+	•	Leaderboards and personal dashboards showing individual, team, and compatibility rankings
+	•	Periodic partner-recommendation feed that surfaces high-compatibility players a user hasn’t teamed with yet
+	•	Real-time updates to matches, ratings, and recommendations through Supabase Realtime channels
+	•	Full row-level security so only involved players can view or edit a match, with optimistic-lock versioning to avoid conflicts
+
 
 ## Project Structure
 ```
@@ -44,32 +48,17 @@ tests/
 * **Framework**: FastAPI
 * **Database**: Supabase Local Development (PostgreSQL + PostGIS)
 * **ORM**: SQLAlchemy 2.0 (Async)
-* **Migrations**: Alembic
 * **Testing**: pytest, supabase-py
-
-## Package Management with uv
-* Use `uv` for all package management tasks:
-  * Initialize project: `uv init`
-  * Add dependencies: `uv add <package-name>`
-  * Add dev dependencies: `uv add --dev <package-name>`
-  * Sync dependencies: `uv sync`
-  * Update dependencies: `uv pip compile`
-* Keep `pyproject.toml` as the single source of truth for dependencies
-* Use `uv sync` to ensure all dependencies are installed correctly
-* Run `uv pip compile` before committing dependency changes
 
 ## Virtual Environment Usage
 * Always activate the virtual environment before running commands:
   ```bash
   source .venv/bin/activate  # On Unix/macOS
-  # or
-  .venv\Scripts\activate  # On Windows
   ```
 * After activating the virtual environment, run commands directly:
   ```bash
   pytest  # Instead of uv pip run pytest
   uvicorn app.main:app --reload  # Instead of uv pip run uvicorn
-  alembic upgrade head  # Instead of uv pip run alembic
   ```
 
 ## Code Style
@@ -130,82 +119,3 @@ tests/
 ## Local Development
 * Use Supabase CLI for local development
 * Run tests before committing
-* Format code with black
-* Lint with ruff
-* Use pre-commit hooks
-
-## 1 Stack & Conventions
-
-* **Python 3.11** runtime only.
-* **FastAPI** HTTP framework; mount all routers below **`/api`**.
-* **SQLAlchemy 2.0** in **async** mode (`async_engine`, `async_session`).
-* **Supabase Local Development** with **PostGIS** extension enabled.
-* Migrations handled by **Alembic**; do *not* edit tables manually.
-* **TrueSkill** rating computed synchronously *inside* the same transaction that persists a match.
-
-## 2 Directory Layout
-
-```
-app/
-  core/          # config, logging, db setup
-  api/           # FastAPI routers
-  models/        # SQLAlchemy models
-  services/      # domain/business logic
-  schemas/       # Pydantic DTOs
-tests/
-  integration/   # Supabase integration tests using supabase-py
-  database/      # pgTAP unit tests for database schema
-alembic/
-  versions/
-```
-
-* Keep `__init__.py` files empty (or re‑exports only). No runtime logic.
-
-## 3 Code Style & Tooling
-
-* Format with **Black**; lint with **Ruff**.
-* Type‑annotate **all** public functions; pass `mypy --strict`.
-* Use `python-json-logger`; middleware adds `X-Request-ID` to every log line.
-
-## 4 Testing
-
-* Use **PyTest** + **pytest‑asyncio** for API and unit tests.
-* Use **supabase-py** for integration tests with Supabase features.
-* Use **pgTAP** for database schema and constraint testing.
-* Provide a DB fixture that connects to Supabase local instance.
-* Strive for ≥ 90 % coverage. Bug fixes start with a failing test.
-
-## 5 Security & Auth
-
-* Accept Supabase JWT in `Authorization: Bearer <token>`; validate against public JWK.
-* Enforce authorization in service layer: user must own or participate in a resource for update/delete.
-* Leverage Supabase Row Level Security (RLS) policies for data access control.
-
-## 6 Database Rules
-
-* Primary keys are `uuid` generated via `uuid_generate_v4()`.
-* Geographic data uses `geography(Point, 4326)`.
-* Use `ON DELETE CASCADE` where child has no meaning without parent.
-* Never `SELECT *` large tables; paginate.
-* Use Supabase auth.users table for user authentication.
-
-## 7 Local Development
-
-* Use **Supabase CLI** for local development: `make supabase-start`.
-* Local services available at:
-  - Database: `postgresql://postgres:postgres@localhost:54322/postgres`
-  - API: `http://localhost:54321`
-  - Studio: `http://localhost:54323`
-* Pre‑commit hooks: `ruff`, `black --check`, `pytest -q`.
-
-## 8 Documentation
-
-* Keep `/docs/openapi.yaml` in sync via `make schema`.
-
-## 9 Referenced Templates (auto‑attach)
-
-@core/config.py
-@core/database.py
-@api/routers/health.py
-
-*The agent should use these rules to guide all future code generation for the backend.*

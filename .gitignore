@@ -94,9 +94,6 @@ wheels/
 .dmypy.json
 dmypy.json
 
-# Ruff
-.ruff_cache/
-
 # Jupyter Notebook
 .ipynb_checkpoints
 

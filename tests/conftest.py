@@ -5,12 +5,33 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from supabase import create_client, Client
 import uuid
+from sqlalchemy.engine.url import URL
+from sqlalchemy import text, MetaData, Table, Column, String, DateTime, func
+from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.config import settings
-from app.core.database import Base
+from app.services.database import Base
+
+# Define auth.users table in the same metadata as Base
+auth_users = Table(
+    "users",
+    Base.metadata,
+    Column("id", UUID, primary_key=True),
+    Column("email", String),
+    Column("created_at", DateTime(timezone=True), server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
+    schema="auth"
+)
 
 # Test database URL - always use local database for tests
-TEST_DATABASE_URL = str(settings.LOCAL_DATABASE_URL)
+TEST_DATABASE_URL = URL.create(
+    drivername="postgresql+asyncpg",
+    username=settings.LOCAL_SUPABASE_DB_USER,
+    password=settings.LOCAL_SUPABASE_PASSWORD,
+    host="localhost",
+    port=54322,
+    database=settings.LOCAL_SUPABASE_DB_NAME
+)
 
 # Create test engine
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=True)
@@ -29,9 +50,13 @@ def event_loop() -> Generator:
 async def test_db_engine():
     """Create a test database engine."""
     async with test_engine.begin() as conn:
+        # Create our test tables
         await conn.run_sync(Base.metadata.create_all)
+    
     yield test_engine
+    
     async with test_engine.begin() as conn:
+        # Drop our test tables
         await conn.run_sync(Base.metadata.drop_all)
 
 @pytest.fixture

@@ -9,16 +9,12 @@ alwaysApply: false
 - `app/` - Main application code
 - `tests/` - Test files
 - `docs/` - Documentation
-- `alembic/` - Database migration files
 - `.venv/` - Python virtual environment
 - `.cursor/` - Cursor IDE configuration
 - `.git/` - Git repository
 
 ## Configuration Files
 - `pyproject.toml` - Python project configuration
-- `alembic.ini` - Alembic database migration configuration
-- `docker-compose.yml` - Docker services configuration
-- `.pre-commit-config.yaml` - Pre-commit hooks configuration
 - `Makefile` - Build and development commands
 - `.gitignore` - Git ignore rules
 - `.python-version` - Python version specification
