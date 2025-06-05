@@ -6,7 +6,11 @@ from app.core.config import settings
 
 # Create async engine
 engine = create_async_engine(
-    str(settings.LOCAL_DATABASE_URL if settings.ENVIRONMENT == "development" else settings.REMOTE_DATABASE_URL),
+    str(
+        settings.LOCAL_DATABASE_URL
+        if settings.ENVIRONMENT == "development"
+        else settings.REMOTE_DATABASE_URL
+    ),
     echo=settings.DEBUG,
     future=True,
 )
@@ -16,7 +20,6 @@ async_session_factory = sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autocommit=False,
     autoflush=False,
 )
 
@@ -34,4 +37,4 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             raise
         finally:
-            await session.close() 
+            await session.close()
