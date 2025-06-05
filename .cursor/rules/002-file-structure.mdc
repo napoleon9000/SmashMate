@@ -23,7 +23,6 @@ alwaysApply: false
 - `main.py` - Application entry point
 - `api/` - API endpoints and routes
 - `core/` - Core application configuration
-- `db/` - Database connection and session management
 - `models/` - Database models
 - `schemas/` - Pydantic schemas for data validation
 - `services/` - Business logic and services

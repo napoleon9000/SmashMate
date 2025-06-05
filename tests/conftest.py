@@ -1,43 +1,10 @@
 import pytest
 import asyncio
-from typing import AsyncGenerator, Generator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from typing import Generator
 from supabase import create_client, Client
 import uuid
-from sqlalchemy.engine.url import URL
-from sqlalchemy import text, MetaData, Table, Column, String, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.config import settings
-from app.services.database import Base
-
-# Define auth.users table in the same metadata as Base
-auth_users = Table(
-    "users",
-    Base.metadata,
-    Column("id", UUID, primary_key=True),
-    Column("email", String),
-    Column("created_at", DateTime(timezone=True), server_default=func.now()),
-    Column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
-    schema="auth"
-)
-
-# Test database URL - always use local database for tests
-TEST_DATABASE_URL = URL.create(
-    drivername="postgresql+asyncpg",
-    username=settings.LOCAL_SUPABASE_DB_USER,
-    password=settings.LOCAL_SUPABASE_PASSWORD,
-    host="localhost",
-    port=54322,
-    database=settings.LOCAL_SUPABASE_DB_NAME
-)
-
-# Create test engine
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=True)
-TestingSessionLocal = sessionmaker(
-    test_engine, class_=AsyncSession, expire_on_commit=False
-)
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -46,35 +13,15 @@ def event_loop() -> Generator:
     yield loop
     loop.close()
 
-@pytest.fixture(scope="session")
-async def test_db_engine():
-    """Create a test database engine."""
-    async with test_engine.begin() as conn:
-        # Create our test tables
-        await conn.run_sync(Base.metadata.create_all)
-    
-    yield test_engine
-    
-    async with test_engine.begin() as conn:
-        # Drop our test tables
-        await conn.run_sync(Base.metadata.drop_all)
-
-@pytest.fixture
-async def db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async with TestingSessionLocal() as session:
-        yield session
-        await session.rollback()
-
 @pytest.fixture
 def supabase_client() -> Client:
     """Create a Supabase client for testing using service role key."""
     return create_client(settings.LOCAL_SUPABASE_URL, settings.LOCAL_SUPABASE_KEY)
 
 @pytest.fixture
-async def test_user(supabase_client: Client):
+async def test_user(supabase_client: Client, db_service):
     """Create a test user and clean up after the test."""
-    test_email = f"test_{uuid.uuid4()}@example.com"
+    test_email = f"test_9{uuid.uuid4()}@example.com"
     test_password = "test_password123"
     
     # Create user with service role
@@ -92,5 +39,42 @@ async def test_user(supabase_client: Client):
         "password": test_password
     }
     
-    # Clean up: delete the test user
-    supabase_client.auth.admin.delete_user(user_id) 
+    # Clean up: delete all associated records first
+    tables = [
+        "match_players",
+        "matches",
+        "player_ratings",
+        "teams",
+        "follows",
+        "venues",
+        "profiles"
+    ]
+    for table in tables:
+        try:
+            await db_service.client.table(table).delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            await db_service.client.table(table).delete().eq("player_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            await db_service.client.table(table).delete().eq("follower", user_id).execute()
+        except Exception:
+            pass
+        try:
+            await db_service.client.table(table).delete().eq("followee", user_id).execute()
+        except Exception:
+            pass
+        try:
+            await db_service.client.table(table).delete().eq("created_by", user_id).execute()
+        except Exception:
+            pass
+    
+    # Now delete the user - handle the error gracefully
+    try:
+        supabase_client.auth.admin.delete_user(user_id)
+    except Exception as e:
+        print(f"Warning: Could not delete user {user_id}: {str(e)}")
+        # Continue with cleanup even if user deletion fails
+        pass 

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     @field_validator("LOCAL_DATABASE_URL", mode="before")
     @classmethod
-    def assemble_local_db_url(cls, v: Optional[str], info: ValidationInfo) -> str:
+    def assemble_local_db_url(cls, v: Optional[str], info: ValidationInfo):
         if isinstance(v, str):
             return v
         return PostgresDsn.build(
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 
     @field_validator("REMOTE_DATABASE_URL", mode="before")
     @classmethod
-    def assemble_remote_db_url(cls, v: Optional[str], info: ValidationInfo) -> str:
+    def assemble_remote_db_url(cls, v: Optional[str], info: ValidationInfo):
         if isinstance(v, str):
             return v
         return PostgresDsn.build(
