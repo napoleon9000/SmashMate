@@ -5,6 +5,9 @@ from supabase import create_client, Client
 import uuid
 
 from app.core.config import settings
+from services.database import DatabaseService
+from tests.unit.test_services_db import TEST_URL, TEST_KEY
+
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -77,4 +80,11 @@ async def test_user(supabase_client: Client, db_service):
     except Exception as e:
         print(f"Warning: Could not delete user {user_id}: {str(e)}")
         # Continue with cleanup even if user deletion fails
-        pass 
+        pass
+
+
+@pytest.fixture(scope="session")
+def db_service():
+    """Create a database service instance for testing."""
+    service = DatabaseService(TEST_URL, TEST_KEY)
+    return service

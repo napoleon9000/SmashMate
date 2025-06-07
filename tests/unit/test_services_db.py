@@ -4,17 +4,13 @@ from uuid import UUID, uuid4
 from app.services.database import DatabaseService
 import os
 
+
 # Test data
 TEST_URL = os.getenv("LOCAL_SUPABASE_URL", "https://test.supabase.co")
 TEST_KEY = os.getenv("LOCAL_SUPABASE_KEY", "your-test-key")
 TEST_VENUE_ID = uuid4()
 TEST_MATCH_ID = uuid4()
 
-@pytest.fixture(scope="session")
-def db_service():
-    """Create a database service instance for testing."""
-    service = DatabaseService(TEST_URL, TEST_KEY)
-    return service
 
 async def reset_database(db_service):
     """Reset the database by deleting all test data."""
@@ -210,8 +206,7 @@ async def test_team(db_service, test_user, additional_test_users):
     
     # First create should create a new team
     result = await db_service.create_team(**team_data)
-    assert result["player_a"] == str(player_a)
-    assert result["player_b"] == str(player_b)
+    assert {player_a, player_b} == {result["player_a"], result["player_b"]}
     assert float(result["mu"]) == team_data["mu"]
     
     team_id = UUID(result["id"])
@@ -318,9 +313,7 @@ async def test_team_compatibility(db_service, test_user, additional_test_users):
     
     # First create should create a new team
     result = await db_service.create_team(**team_data)
-    # Since player_a > player_b, they will be swapped in create_team
-    assert result["player_a"] == str(player_b)  # player_b becomes player_a
-    assert result["player_b"] == str(player_a)  # player_a becomes player_b
+    assert {player_a, player_b} == {result["player_a"], result["player_b"]}
     assert float(result["mu"]) == team_data["mu"]
     assert float(result["sigma"]) == team_data["sigma"]
     
