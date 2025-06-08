@@ -1,7 +1,7 @@
-from typing import Optional, List
-from pydantic_settings import BaseSettings
-from pydantic import PostgresDsn, field_validator, ConfigDict, ValidationInfo
+
 from dotenv import load_dotenv
+from pydantic import ConfigDict, PostgresDsn, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings
 
 load_dotenv()
 
@@ -29,18 +29,22 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000", "http://localhost:8080"]
+    BACKEND_CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://localhost:8080",
+    ]
     
     # Logging
     LOG_LEVEL: str = "INFO"
 
     # Generated URL
-    LOCAL_DATABASE_URL: Optional[PostgresDsn] = None
-    REMOTE_DATABASE_URL: Optional[PostgresDsn] = None
+    LOCAL_DATABASE_URL: PostgresDsn | None = None
+    REMOTE_DATABASE_URL: PostgresDsn | None = None
 
     @field_validator("LOCAL_DATABASE_URL", mode="before")
     @classmethod
-    def assemble_local_db_url(cls, v: Optional[str], info: ValidationInfo):
+    def assemble_local_db_url(cls, v: str | None, info: ValidationInfo):
         if isinstance(v, str):
             return v
         return PostgresDsn.build(
@@ -54,7 +58,7 @@ class Settings(BaseSettings):
 
     @field_validator("REMOTE_DATABASE_URL", mode="before")
     @classmethod
-    def assemble_remote_db_url(cls, v: Optional[str], info: ValidationInfo):
+    def assemble_remote_db_url(cls, v: str | None, info: ValidationInfo):
         if isinstance(v, str):
             return v
         return PostgresDsn.build(
@@ -72,3 +76,4 @@ class Settings(BaseSettings):
     )
 
 settings = Settings() 
+

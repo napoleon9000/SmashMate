@@ -1,12 +1,14 @@
-from typing import Optional, Dict, Any
+from typing import Any
 from uuid import UUID
+
 from app.services.database import DatabaseService
+
 
 async def get_or_create_profile(
     user_id: UUID, 
-    display_name: Optional[str] = None,
-    database: DatabaseService = None
-) -> Dict[str, Any]:
+    display_name: str | None = None,
+    database: DatabaseService | None = None
+) -> dict[str, Any]:
     """Get or create a user profile."""
     if database is None:
         database = DatabaseService()
@@ -15,11 +17,11 @@ async def get_or_create_profile(
 
 async def update_profile(
     user_id: UUID,
-    display_name: Optional[str] = None,
-    avatar_url: Optional[str] = None,
-    default_venue: Optional[UUID] = None,
-    database: DatabaseService = None
-) -> Dict[str, Any]:
+    display_name: str | None = None,
+    avatar_url: str | None = None,
+    default_venue: UUID | None = None,
+    database: DatabaseService | None = None
+) -> dict[str, Any]:
     """Update user profile information."""
     if database is None:
         database = DatabaseService()
