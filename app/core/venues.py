@@ -1,16 +1,19 @@
-from typing import List, Optional, Dict, Any
+import logging
+from typing import Any
 from uuid import UUID
-import traceback
+
 from app.services.database import DatabaseService
+
+logger = logging.getLogger(__name__)
 
 async def create_venue(
     name: str,
     latitude: float,
     longitude: float,
-    address: Optional[str],
+    address: str | None,
     created_by: UUID,
     database: DatabaseService = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a new venue."""
     if database is None:
         database = DatabaseService()
@@ -28,14 +31,16 @@ async def find_nearby_venues(
     longitude: float,
     radius_meters: float = 5000,
     database: DatabaseService = None
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Find venues within a certain radius."""
     if database is None:
         database = DatabaseService()
     
     return await database.find_nearby_venues(latitude, longitude, radius_meters)
 
-async def get_venue(venue_id: UUID, database: DatabaseService = None) -> Optional[Dict[str, Any]]:
+async def get_venue(
+    venue_id: UUID, database: DatabaseService | None = None
+) -> dict[str, Any] | None:
     """Get venue by ID."""
     if database is None:
         database = DatabaseService()
@@ -43,18 +48,17 @@ async def get_venue(venue_id: UUID, database: DatabaseService = None) -> Optiona
     try:
         return await database.get_venue(venue_id)
     except Exception as e:
-        print(f"Error getting venue {venue_id}: {str(e)}")
-        traceback.print_exc()
+        logger.exception("Error getting venue %s: %s", venue_id, e)
         return None
 
 async def update_venue(
     venue_id: UUID,
-    name: Optional[str] = None,
-    latitude: Optional[float] = None,
-    longitude: Optional[float] = None,
-    address: Optional[str] = None,
-    database: DatabaseService = None
-) -> Optional[Dict[str, Any]]:
+    name: str | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    address: str | None = None,
+    database: DatabaseService | None = None,
+) -> dict[str, Any] | None:
     """Update venue information."""
     if database is None:
         database = DatabaseService()
@@ -74,6 +78,5 @@ async def update_venue(
     try:
         return await database.update_venue(venue_id, update_data)
     except Exception as e:
-        print(f"Error updating venue {venue_id}: {str(e)}")
-        traceback.print_exc()
-        return None 
+        logger.exception("Error updating venue %s: %s", venue_id, e)
+        return None
