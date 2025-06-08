@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.api import auth, matches, venues, social, recommendations
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -19,6 +20,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(auth.router, prefix=settings.API_V1_STR)
+app.include_router(matches.router, prefix=settings.API_V1_STR)
+app.include_router(venues.router, prefix=settings.API_V1_STR)
+app.include_router(social.router, prefix=settings.API_V1_STR)
+app.include_router(recommendations.router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():

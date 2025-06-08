@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from typing import List, Dict, Any, Tuple
 from datetime import datetime
 import logging
+from app.core import venues as venues_core
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -242,13 +243,20 @@ async def create_test_venue(db_service, created_by: str, venue_data: Dict[str, A
         venue_data: Custom venue data (merges with defaults)
         
     Returns:
-        Created venue dictionary
+        Created venue dictionary with proper API format (includes latitude/longitude)
     """
     if venue_data is None:
         venue_data = SAMPLE_VENUE_DATA.copy()
     
-    venue_data["created_by"] = created_by
-    return await db_service.create_venue(**venue_data)
+    # Use the core function which properly transforms the response
+    return await venues_core.create_venue(
+        name=venue_data["name"],
+        latitude=venue_data["latitude"],
+        longitude=venue_data["longitude"],
+        address=venue_data["address"],
+        created_by=UUID(created_by),
+        database=db_service
+    )
 
 
 def create_sample_match_data(

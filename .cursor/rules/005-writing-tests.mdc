@@ -1,0 +1,63 @@
+---
+description: Instructions for writing code tests
+globs: 
+alwaysApply: false
+---
+# Writing Tests
+
+## Test Types & Database Access
+
+### Unit Tests
+- Call core functions directly: `await venues_core.create_venue(..., database=db_service)`
+- Pass `db_service` fixture as parameter to functions
+- Use `tests.utils` helpers that call core functions
+
+### API Tests  
+- Use dependency injection: API endpoints must have `database: DatabaseService = Depends(get_database_service)`
+- Test database service automatically injected via `LOCAL_SUPABASE_URL`/`LOCAL_SUPABASE_KEY`
+- **Never** create `DatabaseService()` directly in API endpoints during testing
+
+## Test Architecture
+
+1. **Use Shared Utilities**: Import from `tests.utils`
+   - `reset_database()` for cleanup
+   - `setup_initial_ratings()` for player ratings  
+   - `create_test_venue()`, `create_test_profiles()` for test data
+   - `assert_*()` helpers for better error messages
+
+2. **Test Structure**: Follow Setup/Execute/Assert pattern
+   ```python
+   # Setup: Create test data and conditions
+   # Execute: Run the function being tested  
+   # Assert: Verify expected results
+   ```
+
+3. **Shared Constants**: Use from `tests.utils`
+   - `DEFAULT_INITIAL_RATING`, `SAMPLE_VENUE_DATA`, `SAMPLE_PROFILE_DATA`
+
+## Database Setup
+
+1. **Always use `cleanup_database` fixture** (autouse=True) 
+2. **For match tests**: Call `setup_initial_ratings()` before creating matches
+3. **Use local test database** - never mock database operations
+4. **Consistent test environment**: Use `LOCAL_SUPABASE_URL`/`LOCAL_SUPABASE_KEY`
+
+## Response Format Consistency
+
+1. **Test helpers return API format**: Use core functions (not raw DB calls) in test helpers
+2. **API responses match test data**: Ensure latitude/longitude fields, proper timestamps
+3. **Schema validation**: API responses must match Pydantic schemas
+
+## Test Organization
+
+1. **Descriptive test names**: `test_function_scenario` 
+2. **Clear docstrings**: Explain what scenario is being tested
+3. **Test success and failure cases**: Include edge cases and error handling
+4. **Group related functionality**: CRUD operations together
+
+## Best Practices
+
+1. **Use shared utilities** instead of duplicating code
+2. **Meaningful assertions**: Use helper functions like `assert_profile_in_list()`
+3. **Clear setup**: Make test intentions obvious through comments
+4. **Handle errors gracefully**: Meaningful failure messages

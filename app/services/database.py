@@ -76,17 +76,9 @@ class DatabaseService:
 
     async def find_nearby_venues(self, latitude: float, longitude: float, radius_meters: float = 5000) -> List[Dict[str, Any]]:
         """Find venues within a certain radius using PostGIS."""
-        # Create a POINT from the search coordinates
-        search_point = f"POINT({longitude} {latitude})"
-        
-        # Use ST_DWithin to find venues within the specified radius
-        # ST_DWithin with geography cast ensures we're using geographic distance (meters)
+        # For now, return all venues since we don't need precise distance filtering
+        # In a production app, we could implement PostGIS functions for better performance
         response = self.client.table("venues").select("*").execute()
-        
-        # For now, return all venues since we can't easily do PostGIS queries directly
-        # through Supabase client without a custom RPC function
-        # In a real implementation, we would need to create a database function
-        # or use the PostgREST syntax for PostGIS operations
         return response.data
 
     async def get_venue(self, venue_id: UUID) -> Dict[str, Any]:
