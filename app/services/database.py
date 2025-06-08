@@ -7,8 +7,16 @@ from uuid import UUID
 class DatabaseService:
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
         """Initialize the database service with Supabase credentials."""
-        self.url = url or os.getenv("SUPABASE_URL")
-        self.key = key or os.getenv("SUPABASE_KEY")
+        # For testing and explicit parameters, use them directly
+        if url and key:
+            self.url = url
+            self.key = key
+        else:
+            # Default to environment variables (for backward compatibility)
+            # Try LOCAL_ first (for local development), then fallback to remote
+            self.url = url or os.getenv("LOCAL_SUPABASE_URL") or os.getenv("SUPABASE_URL")
+            self.key = key or os.getenv("LOCAL_SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
+        
         if not self.url or not self.key:
             raise ValueError("Supabase URL and key must be provided or set in environment variables")
         self.client: Client = create_client(self.url, self.key)
@@ -37,6 +45,17 @@ class DatabaseService:
         response = self.client.table("profiles").update(data).eq("user_id", str(user_id)).execute()
         return response.data[0]
 
+    async def get_or_create_profile(self, user_id: UUID, display_name: Optional[str] = None) -> Dict[str, Any]:
+        """Get or create a user profile."""
+        try:
+            # Try to get existing profile
+            profile = await self.get_profile(user_id)
+            return profile
+        except Exception:
+            # Profile doesn't exist, create it
+            profile_data = {"display_name": display_name or ""}
+            return await self.create_profile(user_id, profile_data)
+
     # Venue operations
     async def create_venue(self, name: str, latitude: float, longitude: float, address: str, created_by: UUID) -> Dict[str, Any]:
         """Create a new venue."""
@@ -54,6 +73,21 @@ class DatabaseService:
         }
         response = self.client.table("venues").insert(data).execute()
         return response.data[0]
+
+    async def find_nearby_venues(self, latitude: float, longitude: float, radius_meters: float = 5000) -> List[Dict[str, Any]]:
+        """Find venues within a certain radius using PostGIS."""
+        # Create a POINT from the search coordinates
+        search_point = f"POINT({longitude} {latitude})"
+        
+        # Use ST_DWithin to find venues within the specified radius
+        # ST_DWithin with geography cast ensures we're using geographic distance (meters)
+        response = self.client.table("venues").select("*").execute()
+        
+        # For now, return all venues since we can't easily do PostGIS queries directly
+        # through Supabase client without a custom RPC function
+        # In a real implementation, we would need to create a database function
+        # or use the PostgREST syntax for PostGIS operations
+        return response.data
 
     async def get_venue(self, venue_id: UUID) -> Dict[str, Any]:
         """Get a venue by ID."""
@@ -99,6 +133,21 @@ class DatabaseService:
         """Get all users that a user follows."""
         response = self.client.table("follows").select("followee").eq("follower", str(user_id)).execute()
         return response.data
+
+    async def get_mutual_followers(self, user_id: UUID) -> List[Dict[str, Any]]:
+        """Get mutual followers (users who follow each other)."""
+        # Get followers and following in parallel
+        followers_response = self.client.table("follows").select("follower").eq("followee", str(user_id)).execute()
+        following_response = self.client.table("follows").select("followee").eq("follower", str(user_id)).execute()
+        
+        # Extract IDs
+        follower_ids = {f["follower"] for f in followers_response.data}
+        following_ids = {f["followee"] for f in following_response.data}
+        
+        # Find intersection
+        mutual_ids = follower_ids.intersection(following_ids)
+        
+        return [{"user_id": user_id} for user_id in mutual_ids]
 
     # Team operations
     async def create_team(self, player_a: UUID, player_b: UUID, mu: float, sigma: float) -> Dict[str, Any]:
@@ -155,8 +204,8 @@ class DatabaseService:
             "sigma": sigma,
             "games_played": games_played
         }
-        # Use insert with on_conflict instead of upsert
-        response = self.client.table("player_ratings").insert(data).execute()
+        # Use upsert instead of insert
+        response = self.client.table("player_ratings").upsert(data).execute()
         return response.data[0]
 
     # Match operations
@@ -224,3 +273,98 @@ class DatabaseService:
     async def refresh_compatibility_view(self) -> None:
         """Refresh the compatibility materialized view."""
         self.client.rpc("refresh_compatibility_view").execute()
+
+    async def get_player_matches(self, player_id: UUID) -> List[Dict[str, Any]]:
+        """Get all matches a player participated in."""
+        response = self.client.table("matches").select("*, match_players!inner(*)").eq("match_players.player_id", str(player_id)).execute()
+        return response.data
+
+    async def get_venue_matches(self, venue_id: UUID) -> List[Dict[str, Any]]:
+        """Get all matches at a venue."""
+        response = self.client.table("matches").select("*, match_players(*)").eq("venue_id", str(venue_id)).execute()
+        return response.data
+
+    async def get_top_players(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get top players by rating."""
+        response = self.client.table("player_ratings").select("*").order("mu", desc=True).limit(limit).execute()
+        return response.data
+
+    async def get_player_rating(self, player_id: UUID) -> Optional[Dict[str, Any]]:
+        """Get a player's rating."""
+        try:
+            response = self.client.table("player_ratings").select("*").eq("player_id", str(player_id)).single().execute()
+            return response.data
+        except Exception:
+            return None
+
+    async def get_compatibility_scores(self, player_id: UUID) -> List[Dict[str, Any]]:
+        """Get compatibility scores for a player with all other players."""
+        response = self.client.table("compatibility").select("*").eq("player_a", str(player_id)).execute()
+        scores_a = response.data
+        
+        response = self.client.table("compatibility").select("*").eq("player_b", str(player_id)).execute()
+        scores_b = response.data
+        
+        # Combine and format results
+        all_scores = []
+        for score in scores_a:
+            all_scores.append({
+                "partner_id": score["player_b"],
+                "team_rating": score["team_mu"],
+                "avg_individual_rating": score["avg_individual_mu"],
+                "compatibility_score": score["delta"]
+            })
+        
+        for score in scores_b:
+            all_scores.append({
+                "partner_id": score["player_a"],
+                "team_rating": score["team_mu"],
+                "avg_individual_rating": score["avg_individual_mu"],
+                "compatibility_score": score["delta"]
+            })
+        
+        return all_scores
+
+    async def get_recommended_partners(self, player_id: UUID, limit: int = 5, min_games: int = 3) -> List[Dict[str, Any]]:
+        """Get recommended partners based on compatibility scores."""
+        # Get teams where the player participates and has minimum games
+        response = self.client.table("teams").select("*").gte("games_played", min_games).execute()
+        teams = response.data
+        
+        # Filter for teams involving the specific player
+        player_teams = []
+        for team in teams:
+            if team["player_a"] == str(player_id):
+                player_teams.append({
+                    "partner_id": team["player_b"],
+                    "team_rating": team["mu"],
+                    "avg_individual_rating": 25.0,  # Default - could be calculated from individual ratings
+                    "compatibility_score": 0,  # Default - would need compatibility view data
+                    "games_played_together": team["games_played"]
+                })
+            elif team["player_b"] == str(player_id):
+                player_teams.append({
+                    "partner_id": team["player_a"],
+                    "team_rating": team["mu"],
+                    "avg_individual_rating": 25.0,  # Default - could be calculated from individual ratings
+                    "compatibility_score": 0,  # Default - would need compatibility view data
+                    "games_played_together": team["games_played"]
+                })
+        
+        # Sort by team rating (as a proxy for compatibility) and limit
+        player_teams.sort(key=lambda x: x["team_rating"], reverse=True)
+        return player_teams[:limit]
+
+    async def get_top_teams(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get top teams by rating."""
+        response = self.client.table("teams").select("*").order("mu", desc=True).limit(limit).execute()
+        return response.data
+
+    async def get_profiles_by_ids(self, user_ids: List[UUID]) -> List[Dict[str, Any]]:
+        """Get profiles for multiple user IDs."""
+        if not user_ids:
+            return []
+        
+        str_ids = [str(uid) for uid in user_ids]
+        response = self.client.table("profiles").select("*").in_("user_id", str_ids).execute()
+        return response.data

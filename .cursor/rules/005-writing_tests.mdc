@@ -1,0 +1,53 @@
+---
+description: Instructions for writing code tests
+globs: 
+alwaysApply: false
+---
+# Writing Tests
+
+## Test Architecture
+
+1. **Use Shared Utilities**: Import from `tests.utils` for common patterns
+   - `reset_database()` for cleanup
+   - `setup_initial_ratings()` for player ratings  
+   - `create_test_profiles()`, `create_test_venue()` for test data
+   - `assert_*()` helpers for better error messages
+
+2. **Test Structure**: Follow Setup/Execute/Assert pattern with clear comments
+   ```python
+   # Setup: Create test data and conditions
+   # Execute: Run the function being tested  
+   # Assert: Verify expected results
+   # Verify: Check side effects in database
+   ```
+
+3. **Use Shared Constants**: Import from `tests.utils`
+   - `DEFAULT_INITIAL_RATING` for player ratings
+   - `SAMPLE_VENUE_DATA`, `SAMPLE_PROFILE_DATA` for consistent test data
+
+## Database Tests
+
+1. **Always use `cleanup_database` fixture** (autouse=True) with `reset_database()`
+2. **For match tests**: Use `setup_initial_ratings()` before creating matches
+3. **Use local database** - never mock database operations
+4. **Handle errors gracefully** - use try/except with meaningful failure messages
+
+## Test Organization
+
+1. **Comprehensive docstrings**: Explain what scenario is being tested
+2. **Descriptive test names**: `test_function_scenario` (e.g., `test_get_followers_with_missing_profiles`)
+3. **Group related tests**: Use clear function names that group CRUD operations
+4. **Test both success and failure cases** including edge cases and error handling
+
+## Code Quality
+
+1. **Remove duplication**: Use shared utilities instead of copying code
+2. **Better assertions**: Use helper functions like `assert_profile_in_list()` 
+3. **Clear variable names**: Use descriptive names for test data
+4. **Meaningful error messages**: Include context in assertion messages
+
+## Test Data Patterns
+
+1. **Use builders for complex data**: `TestDataBuilder` for multi-entity scenarios
+2. **Consistent naming**: `follower_ids`, `team1_players`, `all_user_ids`
+3. **Explicit test scenarios**: Make test intentions clear through setup comments
