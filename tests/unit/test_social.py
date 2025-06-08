@@ -128,12 +128,12 @@ async def test_get_followers_empty_list(db_service, test_user):
 
 
 @pytest.mark.asyncio
-async def test_get_followers_with_missing_profiles(db_service, test_user, additional_test_users, capsys):
+async def test_get_followers_with_missing_profiles(db_service, test_user, additional_test_users, caplog):
     """
     Test getting followers when some followers don't have profiles.
     
     This tests error handling - missing profiles should be skipped gracefully
-    with appropriate error logging to stdout.
+    with appropriate error logging.
     """
     user_id = UUID(test_user["id"])
     follower1_id = UUID(additional_test_users[0]["id"])
@@ -155,9 +155,8 @@ async def test_get_followers_with_missing_profiles(db_service, test_user, additi
     assert followers[0]["display_name"] == "Follower One"
     
     # Assert: Error was logged for missing profile
-    captured = capsys.readouterr()
-    assert "Error getting profile for follower" in captured.out
-    assert str(follower2_id) in captured.out
+    assert "Error getting profile for follower" in caplog.text
+    assert str(follower2_id) in caplog.text
 
 
 @pytest.mark.asyncio
@@ -195,12 +194,12 @@ async def test_get_following_empty_list(db_service, test_user):
 
 
 @pytest.mark.asyncio
-async def test_get_following_with_missing_profiles(db_service, test_user, additional_test_users, capsys):
+async def test_get_following_with_missing_profiles(db_service, test_user, additional_test_users, caplog):
     """
     Test getting following when some followees don't have profiles.
     
     This tests error handling - missing profiles should be skipped gracefully
-    with appropriate error logging to stdout.
+    with appropriate error logging.
     """
     user_id = UUID(test_user["id"])
     followee1_id = UUID(additional_test_users[0]["id"])
@@ -222,9 +221,8 @@ async def test_get_following_with_missing_profiles(db_service, test_user, additi
     assert following[0]["display_name"] == "Followee One"
     
     # Assert: Error was logged for missing profile
-    captured = capsys.readouterr()
-    assert "Error getting profile for followee" in captured.out
-    assert str(followee2_id) in captured.out
+    assert "Error getting profile for followee" in caplog.text
+    assert str(followee2_id) in caplog.text
 
 
 @pytest.mark.asyncio
@@ -288,12 +286,12 @@ async def test_get_mutual_followers_empty_list(db_service, test_user, additional
 
 
 @pytest.mark.asyncio
-async def test_get_mutual_followers_with_missing_profiles(db_service, test_user, additional_test_users, capsys):
+async def test_get_mutual_followers_with_missing_profiles(db_service, test_user, additional_test_users, caplog):
     """
     Test getting mutual followers when some don't have profiles.
     
     This tests error handling - missing profiles should be skipped gracefully
-    with appropriate error logging to stdout.
+    with appropriate error logging.
     """
     user_id = UUID(test_user["id"])
     user1_id = UUID(additional_test_users[0]["id"])
@@ -318,9 +316,8 @@ async def test_get_mutual_followers_with_missing_profiles(db_service, test_user,
     assert mutual_followers[0]["display_name"] == "Mutual User One"
     
     # Assert: Error was logged for missing profile
-    captured = capsys.readouterr()
-    assert "Error getting profile for mutual follower" in captured.out
-    assert str(user2_id) in captured.out
+    assert "Error getting profile for mutual follower" in caplog.text
+    assert str(user2_id) in caplog.text
 
 
 @pytest.mark.asyncio
