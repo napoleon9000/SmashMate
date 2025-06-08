@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import logging
 from typing import Generator
 from supabase import create_client, Client
 import uuid
@@ -7,6 +8,36 @@ import uuid
 from app.core.config import settings
 from app.services.database import DatabaseService
 from tests.unit.test_services_db import TEST_URL, TEST_KEY
+
+# Configure logging for tests
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Add pytest markers for different test types
+def pytest_configure(config):
+    """Configure custom pytest markers."""
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test requiring database cleanup"
+    )
+    config.addinivalue_line(
+        "markers", "unit: mark test as unit test (default)"
+    )
+    config.addinivalue_line(
+        "markers", "performance: mark test as performance test with larger datasets"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Automatically mark integration tests based on file path."""
+    for item in items:
+        # Auto-mark tests in integration directory
+        if "integration" in str(item.fspath):
+            item.add_marker(pytest.mark.integration)
+        # Auto-mark unit tests
+        elif "unit" in str(item.fspath):
+            item.add_marker(pytest.mark.unit)
 
 
 @pytest.fixture(scope="session")

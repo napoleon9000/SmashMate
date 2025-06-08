@@ -79,19 +79,27 @@ async def update_ratings(match_id: UUID, database: DatabaseService = DatabaseSer
     
     # Update individual ratings
     for player, new_rating in zip(team1_players, new_team1_ratings):
+        # Get current games_played from existing rating
+        current_rating = await database.get_player_rating(UUID(player["player_id"]))
+        current_games_played = current_rating.get("games_played", 0) if current_rating else 0
+        
         await database.update_player_rating(
             UUID(player["player_id"]),
             new_rating.mu,
             new_rating.sigma,
-            player.get("games_played", 0) + 1
+            current_games_played + 1
         )
     
     for player, new_rating in zip(team2_players, new_team2_ratings):
+        # Get current games_played from existing rating
+        current_rating = await database.get_player_rating(UUID(player["player_id"]))
+        current_games_played = current_rating.get("games_played", 0) if current_rating else 0
+        
         await database.update_player_rating(
             UUID(player["player_id"]),
             new_rating.mu,
             new_rating.sigma,
-            player.get("games_played", 0) + 1
+            current_games_played + 1
         )
     
     # Update team ratings

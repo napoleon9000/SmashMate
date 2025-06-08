@@ -8,7 +8,10 @@ multiple test files to reduce duplication and improve maintainability.
 from uuid import UUID, uuid4
 from typing import List, Dict, Any, Tuple
 from datetime import datetime
+import logging
 
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Common test constants
 DEFAULT_INITIAL_RATING = {
@@ -40,24 +43,154 @@ async def reset_database(db_service) -> None:
     Args:
         db_service: DatabaseService instance to perform the cleanup
     """
-    # Order matters - delete child tables before parent tables
-    tables = [
-        "match_players",  # References matches
-        "matches",        # References venues and users
-        "player_ratings", # References users
-        "teams",         # References users
-        "follows",       # References users
-        "venues",        # References users
-        "profiles"       # References users
+    # Order matters - delete child tables before parent tables to respect foreign keys
+    tables_to_clean = [
+        # First, delete records that reference other tables
+        "group_messages",     # References groups and users
+        "messages",           # References users
+        "match_players",      # References matches and users
+        "matches",            # References venues and users
+        "player_ratings",     # References users
+        "teams",              # References users (player pairs)
+        "follows",            # References users
+        "groups",             # References users (created_by)
+        "venues",             # References users (created_by)
+        "profiles",           # References users (user_id)
     ]
     
-    for table in tables:
+    cleanup_count = 0
+    for table in tables_to_clean:
         try:
-            # Delete all records except a dummy record to avoid deleting system data
-            db_service.client.table(table).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
-        except Exception:
-            # Ignore errors (table might be empty or operation might fail)
+            # Use async client method to delete all records
+            # We delete all records since this is for testing
+            result = await db_service.client.table(table).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+            if hasattr(result, 'data') and result.data:
+                cleanup_count += len(result.data)
+                logger.debug(f"Cleaned {len(result.data)} records from {table}")
+        except Exception as e:
+            # Log but don't fail - table might be empty or constraint issues
+            logger.debug(f"Could not clean table {table}: {str(e)}")
             pass
+    
+    logger.info(f"Database cleanup completed: {cleanup_count} total records cleaned")
+
+
+async def comprehensive_database_cleanup(db_service) -> None:
+    """
+    Comprehensive database cleanup specifically for integration tests.
+    
+    This function performs a thorough cleanup of all test-related data,
+    including attempts to handle constraint violations and orphaned records.
+    Should be used with @pytest.fixture(autouse=True) for integration tests.
+    
+    Args:
+        db_service: DatabaseService instance to perform the cleanup
+    """
+    logger.info("Starting comprehensive database cleanup for integration tests...")
+    
+    # Step 1: Delete all test-related records in dependency order
+    cleanup_operations = [
+        # Delete message and group data first (most dependent)
+        ("group_messages", ["group_id", "sender_id"]),
+        ("messages", ["sender_id", "receiver_id"]),
+        
+        # Delete match-related data
+        ("match_players", ["match_id", "player_id"]),
+        ("matches", ["venue_id", "created_by"]),
+        
+        # Delete rating and team data
+        ("player_ratings", ["player_id"]),
+        ("teams", ["player1_id", "player2_id"]),
+        
+        # Delete social connections
+        ("follows", ["follower", "followee"]),
+        
+        # Delete groups
+        ("groups", ["created_by"]),
+        
+        # Delete venue data
+        ("venues", ["created_by"]),
+        
+        # Finally delete profiles (least dependent)
+        ("profiles", ["user_id"]),
+    ]
+    
+    total_cleaned = 0
+    
+    for table, reference_columns in cleanup_operations:
+        try:
+            # First attempt: delete all records
+            result = await db_service.client.table(table).delete().neq("id", "").execute()
+            
+            if hasattr(result, 'data') and result.data:
+                cleaned_count = len(result.data)
+                total_cleaned += cleaned_count
+                logger.debug(f"Cleaned {cleaned_count} records from {table}")
+            
+        except Exception as e:
+            logger.warning(f"Standard cleanup failed for {table}: {str(e)}")
+            
+            # Step 2: If standard cleanup fails, try cleaning by reference columns
+            for ref_col in reference_columns:
+                try:
+                    # Delete records where reference column is not null
+                    result = await db_service.client.table(table).delete().not_.is_(ref_col, "null").execute()
+                    if hasattr(result, 'data') and result.data:
+                        cleaned_count = len(result.data)
+                        total_cleaned += cleaned_count
+                        logger.debug(f"Cleaned {cleaned_count} records from {table} by {ref_col}")
+                except Exception as ref_error:
+                    logger.debug(f"Reference cleanup failed for {table}.{ref_col}: {str(ref_error)}")
+                    continue
+    
+    # Step 3: Final verification - try to count remaining records
+    verification_tables = ["profiles", "venues", "matches", "follows"]
+    remaining_records = {}
+    
+    for table in verification_tables:
+        try:
+            result = await db_service.client.table(table).select("id").execute()
+            count = len(result.data) if hasattr(result, 'data') and result.data else 0
+            if count > 0:
+                remaining_records[table] = count
+        except Exception:
+            pass  # Table might not exist or be accessible
+    
+    if remaining_records:
+        logger.warning(f"Some records remain after cleanup: {remaining_records}")
+    else:
+        logger.info("Database cleanup verification passed - no test records remaining")
+    
+    logger.info(f"Comprehensive database cleanup completed: {total_cleaned} total records cleaned")
+
+
+async def cleanup_test_users(supabase_client, user_list: List[Dict[str, str]]) -> None:
+    """
+    Clean up test users from Supabase auth.
+    
+    This function attempts to delete test users from the authentication system.
+    Should be called in test fixture cleanup.
+    
+    Args:
+        supabase_client: Supabase client instance
+        user_list: List of user dictionaries with 'id' field
+    """
+    deleted_count = 0
+    failed_count = 0
+    
+    for user in user_list:
+        try:
+            supabase_client.auth.admin.delete_user(user["id"])
+            deleted_count += 1
+            logger.debug(f"Deleted test user: {user['id']}")
+        except Exception as e:
+            failed_count += 1
+            logger.debug(f"Could not delete user {user['id']}: {str(e)}")
+    
+    if failed_count > 0:
+        logger.warning(f"Failed to delete {failed_count} test users (this is often normal)")
+    
+    logger.info(f"Test user cleanup completed: {deleted_count} users deleted, {failed_count} failed")
 
 
 async def setup_initial_ratings(db_service, user_ids: List[str], rating_data: Dict[str, Any] = None) -> None:
