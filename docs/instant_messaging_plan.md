@@ -47,13 +47,18 @@ Enable Row Level Security and add policies so users can only read their own dire
 The backend exposes helper methods in `DatabaseService` for sending and retrieving messages. See `app/services/database.py` for implementations:
 
 - `send_message(sender_id, receiver_id, content)`
-- `get_messages(user1_id, user2_id)`
+- `get_messages(user1_id, user2_id, limit=50, before=None)`
 - `create_group(name, creator_id)`
 - `add_group_member(group_id, user_id)`
 - `send_group_message(group_id, sender_id, content)`
-- `get_group_messages(group_id)`
+- `get_group_messages(group_id, limit=50, before=None)`
 
 These functions use `supabase-py` and can be consumed by API routes or other services.
+
+Both message retrieval helpers support simple pagination through the
+`limit` and `before` parameters. Fetch the most recent messages with the
+desired limit, then request older history by passing the timestamp from
+the earliest loaded message to the next call's `before` argument.
 
 ## 4. Usage
 On the client side, subscribe to `INSERT` events on the `messages` and `group_messages` tables using the Supabase Realtime SDK. When a new record is inserted, update the chat UI accordingly.
