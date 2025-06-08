@@ -368,3 +368,94 @@ class DatabaseService:
         str_ids = [str(uid) for uid in user_ids]
         response = self.client.table("profiles").select("*").in_("user_id", str_ids).execute()
         return response.data
+
+    # Messaging operations
+    async def send_message(self, sender_id: UUID, receiver_id: UUID, content: str) -> Dict[str, Any]:
+        """Send a direct message from sender to receiver."""
+        data = {
+            "sender_id": str(sender_id),
+            "receiver_id": str(receiver_id),
+            "content": content
+        }
+        response = self.client.table("messages").insert(data).execute()
+        return response.data[0]
+
+    async def get_messages(
+        self,
+        user1_id: UUID,
+        user2_id: UUID,
+        limit: int = 50,
+        before: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve messages exchanged between two users with optional pagination.
+
+        Messages are returned ordered by creation time ascending. ``limit``
+        controls the maximum number of results. ``before`` allows fetching
+        messages older than the provided timestamp.
+        """
+
+        query = (
+            self.client.table("messages")
+            .select("*")
+            .or_(
+                f"and(sender_id.eq.{user1_id},receiver_id.eq.{user2_id}),"
+                f"and(sender_id.eq.{user2_id},receiver_id.eq.{user1_id})"
+            )
+            .order("created_at", desc=True)
+            .limit(limit)
+        )
+
+        if before:
+            query = query.lt("created_at", before.isoformat())
+
+        response = query.execute()
+        data = response.data or []
+        # Reverse so callers always receive messages oldest -> newest
+        return list(reversed(data))
+
+    async def create_group(self, name: str, creator_id: UUID) -> Dict[str, Any]:
+        """Create a new chat group and add the creator as a member."""
+        data = {"name": name, "creator_id": str(creator_id)}
+        response = self.client.table("groups").insert(data).execute()
+        group = response.data[0]
+        self.client.table("group_members").insert({"group_id": group["id"], "user_id": str(creator_id)}).execute()
+        return group
+
+    async def add_group_member(self, group_id: UUID, user_id: UUID) -> Dict[str, Any]:
+        """Add a user to a group."""
+        data = {"group_id": str(group_id), "user_id": str(user_id)}
+        response = self.client.table("group_members").insert(data).execute()
+        return response.data[0]
+
+    async def send_group_message(self, group_id: UUID, sender_id: UUID, content: str) -> Dict[str, Any]:
+        """Send a message to a group."""
+        data = {
+            "group_id": str(group_id),
+            "sender_id": str(sender_id),
+            "content": content
+        }
+        response = self.client.table("group_messages").insert(data).execute()
+        return response.data[0]
+
+    async def get_group_messages(
+        self,
+        group_id: UUID,
+        limit: int = 50,
+        before: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve messages from a group with optional pagination."""
+
+        query = (
+            self.client.table("group_messages")
+            .select("*")
+            .eq("group_id", str(group_id))
+            .order("created_at", desc=True)
+            .limit(limit)
+        )
+
+        if before:
+            query = query.lt("created_at", before.isoformat())
+
+        response = query.execute()
+        data = response.data or []
+        return list(reversed(data))
