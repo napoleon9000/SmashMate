@@ -1,5 +1,6 @@
 import pytest
 from uuid import UUID
+from datetime import datetime
 
 pytestmark = pytest.mark.asyncio
 
@@ -30,7 +31,7 @@ async def test_message_pagination(db_service, test_user, additional_test_users):
     page1 = await db_service.get_messages(sender, receiver, limit=3)
     assert len(page1) == 3
 
-    before = page1[0]["created_at"]
+    before = datetime.fromisoformat(page1[0]["created_at"])
     page2 = await db_service.get_messages(sender, receiver, limit=3, before=before)
     assert len(page2) == 3
 
@@ -70,6 +71,6 @@ async def test_group_message_pagination(db_service, test_user, additional_test_u
     page1 = await db_service.get_group_messages(group_id, limit=2)
     assert len(page1) == 2
 
-    before = page1[0]["created_at"]
+    before = datetime.fromisoformat(page1[0]["created_at"])
     page2 = await db_service.get_group_messages(group_id, limit=3, before=before)
     assert len(page2) == 3

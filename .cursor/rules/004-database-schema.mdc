@@ -71,21 +71,41 @@ create table match_players (
 );
 create index mp_player_idx on match_players(player_id);
 
--- 2.6 Compatibility Materialized View
-create materialized view compatibility as
-select
-  t.player_a,
-  t.player_b,
-  t.mu                                    as team_mu,
-  ((r1.mu + r2.mu)/2)                     as avg_individual_mu,
-  t.mu - ((r1.mu + r2.mu)/2)              as delta
-from teams t
-join player_ratings r1 on r1.player_id = t.player_a
-join player_ratings r2 on r2.player_id = t.player_b
-join auth.users p1 on p1.id = t.player_a
-join auth.users p2 on p2.id = t.player_b;
+-- 2.6 Compatibility Calculation (On-the-Fly)
+-- Compatibility scores are calculated dynamically using the formula:
+-- compatibility_score = team_mu - ((player1_mu + player2_mu) / 2)
+-- This approach is more efficient and always up-to-date compared to materialized views.
+-- The calculation is performed in the application layer by querying teams and player_ratings tables.
 
-create unique index on compatibility(player_a, player_b);
+-- 2.7 Messaging System
+create table messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid references auth.users on delete cascade,
+  receiver_id uuid references auth.users on delete cascade,
+  content text not null,
+  created_at timestamptz default now()
+);
+
+create table groups (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  creator_id uuid references auth.users on delete cascade,
+  created_at timestamptz default now()
+);
+
+create table group_members (
+  group_id uuid references groups(id) on delete cascade,
+  user_id uuid references auth.users on delete cascade,
+  primary key (group_id, user_id)
+);
+
+create table group_messages (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid references groups(id) on delete cascade,
+  sender_id uuid references auth.users on delete cascade,
+  content text not null,
+  created_at timestamptz default now()
+);
 
 ## Main Row Level Security Policy
 alter table profiles enable row level security;
@@ -129,4 +149,56 @@ create policy "participants read" on match_players
     player_id = auth.uid() OR
     exists (select 1 from match_players mp2
             where mp2.match_id = match_id and mp2.player_id = auth.uid())
+  );
+
+-- Messaging RLS Policies
+alter table messages enable row level security;
+create policy "read own direct messages" on messages
+  for select using (
+    sender_id = auth.uid() or receiver_id = auth.uid()
+  );
+create policy "send direct messages" on messages
+  for insert with check (sender_id = auth.uid());
+
+alter table groups enable row level security;
+create policy "group creator" on groups
+  for insert with check (creator_id = auth.uid());
+create policy "view own groups" on groups
+  for select using (
+    creator_id = auth.uid() or
+    exists (
+      select 1 from group_members m
+      where m.group_id = id and m.user_id = auth.uid()
+    )
+  );
+
+alter table group_members enable row level security;
+create policy "join group" on group_members
+  for insert with check (
+    auth.uid() = user_id or auth.uid() = (
+      select creator_id from groups g where g.id = group_id
+    )
+  );
+create policy "view group members" on group_members
+  for select using (
+    exists (
+      select 1 from group_members m
+      where m.group_id = group_id and m.user_id = auth.uid()
+    )
+  );
+
+alter table group_messages enable row level security;
+create policy "send group message" on group_messages
+  for insert with check (
+    sender_id = auth.uid() and exists (
+      select 1 from group_members m
+      where m.group_id = group_id and m.user_id = auth.uid()
+    )
+  );
+create policy "read group messages" on group_messages
+  for select using (
+    exists (
+      select 1 from group_members m
+      where m.group_id = group_id and m.user_id = auth.uid()
+    )
   );

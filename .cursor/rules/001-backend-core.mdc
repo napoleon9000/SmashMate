@@ -13,7 +13,7 @@ version: "1.0"
 # Smash Mate Backend – Core Rules
 
 ## Use case
-Smash Mate is a social companion app for groups of badminton players who regularly meet at the same venue. After signing in with Google or Apple, a player selects or creates the venue they’re currently in, follows other players who play there, records doubles-match results, and instantly sees updated TrueSkill ratings for each individual and for every fixed pair. By comparing a pair’s team rating with the average of the two players’ individual ratings, the app derives a “compatibility score” that highlights how well the two partners mesh and periodically recommends promising new partners.
+Smash Mate is a social companion app for groups of badminton players who regularly meet at the same venue. After signing in with Google or Apple, a player selects or creates the venue they're currently in, follows other players who play there, records doubles-match results, and instantly sees updated TrueSkill ratings for each individual and for every fixed pair. By comparing a pair's team rating with the average of the two players' individual ratings, the app derives a "compatibility score" that highlights how well the two partners mesh and periodically recommends promising new partners.
 
 ## Core functionalties
 	•	User authentication via Google / Apple, profile management, and choice of current venue
@@ -21,12 +21,17 @@ Smash Mate is a social companion app for groups of badminton players who regular
 	•	Social layer: follow / unfollow other players at the same venue and view mutual followers
 	•	Match recording: pick four followed players, enter scores once, shareable edit access for all participants
 	•	Synchronous TrueSkill computation upon match submission, updating player, team, and history records in one transaction
-	•	Compatibility calculation from player and team ratings, refreshed and stored for quick lookup
+	•	On-the-fly compatibility calculation from player and team ratings (team_mu - avg_individual_mu), computed dynamically for optimal efficiency
 	•	Leaderboards and personal dashboards showing individual, team, and compatibility rankings
-	•	Periodic partner-recommendation feed that surfaces high-compatibility players a user hasn’t teamed with yet
+	•	Periodic partner-recommendation feed that surfaces high-compatibility players a user hasn't teamed with yet
 	•	Real-time updates to matches, ratings, and recommendations through Supabase Realtime channels
 	•	Full row-level security so only involved players can view or edit a match, with optimistic-lock versioning to avoid conflicts
 
+## Compatibility Score Calculation
+* **Formula**: `compatibility_score = team_mu - ((player1_mu + player2_mu) / 2)`
+* **Approach**: Calculated on-the-fly in application layer, not stored in database
+* **Benefits**: Always up-to-date, more efficient than materialized views, no refresh needed
+* **Implementation**: Located in `app/services/database.py` methods `get_compatibility_scores()` and `get_recommended_partners()`
 
 ## Project Structure
 ```

@@ -299,35 +299,62 @@ class DatabaseService:
 
     async def get_compatibility_scores(self, player_id: UUID) -> List[Dict[str, Any]]:
         """Get compatibility scores for a player with all other players."""
-        response = self.client.table("compatibility").select("*").eq("player_a", str(player_id)).execute()
-        scores_a = response.data
+        # Get all teams where this player participates
+        response = self.client.table("teams").select("*").execute()
+        teams = response.data
         
-        response = self.client.table("compatibility").select("*").eq("player_b", str(player_id)).execute()
-        scores_b = response.data
+        # Filter for teams involving the specific player
+        player_teams = []
+        for team in teams:
+            if team["player_a"] == str(player_id):
+                player_teams.append({
+                    "partner_id": team["player_b"],
+                    "team_mu": team["mu"],
+                    "team_sigma": team["sigma"]
+                })
+            elif team["player_b"] == str(player_id):
+                player_teams.append({
+                    "partner_id": team["player_a"], 
+                    "team_mu": team["mu"],
+                    "team_sigma": team["sigma"]
+                })
         
-        # Combine and format results
-        all_scores = []
-        for score in scores_a:
-            all_scores.append({
-                "partner_id": score["player_b"],
-                "team_rating": score["team_mu"],
-                "avg_individual_rating": score["avg_individual_mu"],
-                "compatibility_score": score["delta"]
+        if not player_teams:
+            return []
+        
+        # Get individual ratings for the player and all partners
+        all_player_ids = [str(player_id)]
+        for team in player_teams:
+            all_player_ids.append(team["partner_id"])
+        
+        # Get player ratings
+        ratings_response = self.client.table("player_ratings").select("*").in_("player_id", all_player_ids).execute()
+        ratings_dict = {r["player_id"]: r for r in ratings_response.data}
+        
+        # Calculate compatibility scores
+        compatibility_scores = []
+        player_rating = ratings_dict.get(str(player_id), {}).get("mu", 25.0)  # Default TrueSkill rating
+        
+        for team in player_teams:
+            partner_rating = ratings_dict.get(team["partner_id"], {}).get("mu", 25.0)
+            avg_individual_rating = (player_rating + partner_rating) / 2
+            compatibility_score = team["team_mu"] - avg_individual_rating
+            
+            compatibility_scores.append({
+                "partner_id": team["partner_id"],
+                "team_rating": team["team_mu"],
+                "avg_individual_rating": avg_individual_rating,
+                "compatibility_score": compatibility_score
             })
         
-        for score in scores_b:
-            all_scores.append({
-                "partner_id": score["player_a"],
-                "team_rating": score["team_mu"],
-                "avg_individual_rating": score["avg_individual_mu"],
-                "compatibility_score": score["delta"]
-            })
+        # Sort by compatibility score (highest first)
+        compatibility_scores.sort(key=lambda x: x["compatibility_score"], reverse=True)
         
-        return all_scores
+        return compatibility_scores
 
     async def get_recommended_partners(self, player_id: UUID, limit: int = 5, min_games: int = 3) -> List[Dict[str, Any]]:
         """Get recommended partners based on compatibility scores."""
-        # Get teams where the player participates and has minimum games
+        # Get all teams where the player participates and has minimum games
         response = self.client.table("teams").select("*").gte("games_played", min_games).execute()
         teams = response.data
         
@@ -337,23 +364,47 @@ class DatabaseService:
             if team["player_a"] == str(player_id):
                 player_teams.append({
                     "partner_id": team["player_b"],
-                    "team_rating": team["mu"],
-                    "avg_individual_rating": 25.0,  # Default - could be calculated from individual ratings
-                    "compatibility_score": 0,  # Default - would need compatibility view data
-                    "games_played_together": team["games_played"]
+                    "team_mu": team["mu"],
+                    "games_played": team["games_played"]
                 })
             elif team["player_b"] == str(player_id):
                 player_teams.append({
                     "partner_id": team["player_a"],
-                    "team_rating": team["mu"],
-                    "avg_individual_rating": 25.0,  # Default - could be calculated from individual ratings
-                    "compatibility_score": 0,  # Default - would need compatibility view data
-                    "games_played_together": team["games_played"]
+                    "team_mu": team["mu"], 
+                    "games_played": team["games_played"]
                 })
         
-        # Sort by team rating (as a proxy for compatibility) and limit
-        player_teams.sort(key=lambda x: x["team_rating"], reverse=True)
-        return player_teams[:limit]
+        if not player_teams:
+            return []
+        
+        # Get individual ratings
+        all_player_ids = [str(player_id)]
+        for team in player_teams:
+            all_player_ids.append(team["partner_id"])
+        
+        ratings_response = self.client.table("player_ratings").select("*").in_("player_id", all_player_ids).execute()
+        ratings_dict = {r["player_id"]: r for r in ratings_response.data}
+        
+        # Calculate compatibility scores
+        player_rating = ratings_dict.get(str(player_id), {}).get("mu", 25.0)
+        
+        recommendations = []
+        for team in player_teams:
+            partner_rating = ratings_dict.get(team["partner_id"], {}).get("mu", 25.0)
+            avg_individual_rating = (player_rating + partner_rating) / 2
+            compatibility_score = team["team_mu"] - avg_individual_rating
+            
+            recommendations.append({
+                "partner_id": team["partner_id"],
+                "team_rating": team["team_mu"],
+                "avg_individual_rating": avg_individual_rating,
+                "compatibility_score": compatibility_score,
+                "games_played_together": team["games_played"]
+            })
+        
+        # Sort by compatibility score (highest first) and limit
+        recommendations.sort(key=lambda x: x["compatibility_score"], reverse=True)
+        return recommendations[:limit]
 
     async def get_top_teams(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get top teams by rating."""
