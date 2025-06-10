@@ -58,6 +58,17 @@ db-migrate: ## Create a new migration
 dev: ## Start development server
 	$(UV) run uvicorn app.main:app --reload
 
+run-streamlit: ## Check and start Supabase if needed, then run Streamlit app
+	@echo "Checking Supabase status..."
+	@if ! $(SUPABASE) status >/dev/null 2>&1; then \
+		echo "Supabase is not running. Starting..."; \
+		$(SUPABASE) start; \
+	else \
+		echo "Supabase is already running."; \
+	fi
+	@echo "Starting Streamlit app..."
+	$(UV) run streamlit run app/streamlit/streamlit_app.py
+
 # Database URL commands
 db-url: ## Show database connection URLs
 	@echo "Database URL: postgresql://postgres:postgres@localhost:54322/postgres"
