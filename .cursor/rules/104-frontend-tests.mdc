@@ -1,0 +1,32 @@
+---
+description: Testing strategy for the frontend
+globs:
+  - frontend/**
+alwaysApply: false
+---
+# Testing Rules
+
+## Tools
+- **Jest** with **@testing-library/react-native** for component tests.
+- **Expo E2E** tests using **Jest + Detox** for integration flows.
+- **msw** (Mock Service Worker) for mocking backend requests during tests.
+
+## Unit Tests
+1. Place test files next to the component under `__tests__/` using `*.test.tsx` or `*.test.ts`.
+2. Test component rendering, props, and interactions with React Native Testing Library.
+3. Mock external modules and API calls using `jest.mock` or MSW handlers.
+
+## Integration Tests
+1. Detox tests live in `frontend/tests/e2e/`.
+2. Use Expo's managed workflow with `detox-expo-helpers` to start the app.
+3. Simulate typical user flows (login, record match, view leaderboard).
+4. Keep tests deterministic by seeding the backend or mocking API responses via MSW.
+
+## Running Tests
+```bash
+# Run unit tests
+npm test
+
+# Run Detox integration tests (requires iOS/Android simulator)
+npm run e2e
+```
