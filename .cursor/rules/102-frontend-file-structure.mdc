@@ -1,0 +1,28 @@
+---
+description: File structure for the Smash Mate frontend repo
+globs:
+  - frontend/**
+alwaysApply: false
+---
+# File Structure Guidelines
+
+All frontend code lives under the `frontend/` directory at the repository root.
+
+```
+frontend/
+├── App.tsx              # Expo entry point
+├── app.config.ts        # Expo configuration
+├── components/          # Reusable UI components
+├── screens/             # Screen components for navigation
+├── navigation/          # React Navigation setup
+├── hooks/               # Custom React hooks
+├── lib/                 # API clients and shared utilities
+├── assets/              # Images, fonts, and static assets
+├── theme/               # Light/Dark theme definitions
+├── tests/               # Jest test files
+└── package.json         # Node dependencies
+```
+
+Place each screen in its own subfolder inside `screens/` with an `index.tsx` file and related styles. Components that are used across multiple screens go in `components/`.
+
+Keep API interaction functions in `lib/api.ts` and data-fetching hooks in `hooks/use*.ts`.

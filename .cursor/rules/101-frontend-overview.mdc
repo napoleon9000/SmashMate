@@ -1,0 +1,42 @@
+---
+description: Frontend project overview and design/coding principles
+globs:
+  - frontend/**
+alwaysApply: false
+---
+# Smash Mate Frontend – Overview & Guidelines
+
+## Purpose
+This repo contains the React Native + Expo mobile application for Smash Mate. The app allows users to sign in, select venues, record matches, view leaderboards and message other players. It consumes the FastAPI backend described in the backend rules.
+
+## Core Tech Stack
+- **React Native** with **Expo**
+- **TypeScript** for static typing
+- **React Navigation** for screen routing
+- **React Query (TanStack Query)** for data fetching & caching
+- **Supabase JS** for authentication and realtime features
+- **NativeWind** (Tailwind CSS for RN) for styling
+
+## UI Design Principles
+1. **Modern & Minimal** – Clean layouts, ample white space, consistent spacing.
+2. **Fancy but Simple** – Use smooth animations and gradients sparingly to enhance appeal without clutter.
+3. **Accessibility** – Proper contrast ratios and scalable fonts.
+4. **Consistent Components** – Build reusable components in `frontend/components/`.
+5. **Dark Mode** – Support both light and dark themes using a central theme file.
+
+## Coding Style
+- Use ESLint with Airbnb/React Native rules.
+- Prettier for formatting (tabs=2, single quotes, semicolons).
+- All files are TypeScript (`.tsx` for components, `.ts` otherwise).
+- Keep screens in `frontend/screens/` and hooks in `frontend/hooks/`.
+- Favor functional components and React hooks.
+- State management via React Query and React Context; avoid Redux unless needed.
+
+## Quick Start
+```bash
+# Install dependencies
+npm install -g expo-cli
+npm install
+# Start the development server
+expo start
+```

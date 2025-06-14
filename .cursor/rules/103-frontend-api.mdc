@@ -1,0 +1,35 @@
+---
+description: Backend API endpoints consumed by the frontend
+globs:
+  - frontend/**
+alwaysApply: false
+---
+# Backend API Reference
+
+The frontend communicates with the FastAPI backend at `${BACKEND_URL}/api/v1`.
+Only a subset of endpoints are used initially:
+
+## Auth
+- `GET /auth/profile/{user_id}` – Fetch or create the signed-in user's profile.
+- `PUT /auth/profile/{user_id}` – Update profile data.
+
+## Venues
+- `GET /venues/nearby?latitude=&longitude=&radius_meters=` – Search nearby venues.
+- `POST /venues/?created_by=` – Create a new venue.
+
+## Matches
+- `POST /matches/?created_by=` – Submit a new match.
+- `GET /matches/player/{player_id}` – List player's match history.
+- `GET /matches/leaderboard?limit=` – Get top rated players.
+
+## Social
+- `POST /social/follow/{user_id}` – Follow another player.
+- `GET /social/followers/{user_id}` – List user's followers.
+
+## Messaging
+- `POST /messages/` – Send a direct message.
+- `GET /messages/{user_id}` – Fetch user's direct messages.
+
+All endpoints return JSON encoded responses matching the Pydantic schemas from the backend rules. Authentication is handled via Supabase JWT tokens passed in the `Authorization` header (`Bearer <token>`).
+
+Refer to Swagger docs at `${BACKEND_URL}/api/v1/docs` for details.
