@@ -21,6 +21,37 @@ class DatabaseService:
             raise ValueError("Supabase URL and key must be provided or set in environment variables")
         self.client: Client = create_client(self.url, self.key)
 
+    # Internal helpers
+    async def _ensure_player(self, player_id: UUID, display_name: str = "") -> None:
+        """Ensure a player record exists for the given real user."""
+        data = {
+            "id": str(player_id),
+            "user_id": str(player_id),
+            "owner_id": str(player_id),
+            "display_name": display_name,
+        }
+        try:
+            self.client.table("players").upsert(data).execute()
+        except Exception:
+            pass
+
+    async def create_fake_player(self, owner_id: UUID, display_name: str) -> Dict[str, Any]:
+        """Create a fake player profile owned by a user."""
+        data = {"owner_id": str(owner_id), "display_name": display_name}
+        response = self.client.table("players").insert(data).execute()
+        return response.data[0]
+
+    async def link_fake_to_real(self, fake_id: UUID, real_player_id: UUID) -> Dict[str, Any]:
+        """Link a fake player to a real player."""
+        data = {"linked_player": str(real_player_id)}
+        response = (
+            self.client.table("players")
+            .update(data)
+            .eq("id", str(fake_id))
+            .execute()
+        )
+        return response.data[0] if response.data else {}
+
     # Profile operations
     async def get_profile(self, user_id: UUID) -> Dict[str, Any]:
         """Get a user's profile."""
@@ -148,7 +179,9 @@ class DatabaseService:
         Note: The database enforces that player_a < player_b lexicographically.
         This function will automatically swap the players if needed.
         """
-        # Ensure player_a < player_b to satisfy the constraint
+        # Ensure player records exist and enforce ordering
+        await self._ensure_player(player_a)
+        await self._ensure_player(player_b)
         if str(player_a) > str(player_b):
             player_a, player_b = player_b, player_a
 
@@ -184,11 +217,8 @@ class DatabaseService:
     # Player rating operations
     async def update_player_rating(self, player_id: UUID, mu: float, sigma: float, games_played: int) -> Dict[str, Any]:
         """Update a player's rating."""
-        # First ensure the player exists
-        try:
-            self.client.table("users").insert({"id": str(player_id)}).execute()
-        except Exception:
-            pass  # Player might already exist
+        # Ensure player record exists
+        await self._ensure_player(player_id)
 
         data = {
             "player_id": str(player_id),
@@ -210,12 +240,9 @@ class DatabaseService:
         players: List[Tuple[UUID, int, bool]]  # (player_id, team, is_winner)
     ) -> Dict[str, Any]:
         """Create a new match with its players."""
-        # First ensure all players exist
+        # Ensure all player records exist
         for player_id, _, _ in players:
-            try:
-                self.client.table("users").insert({"id": str(player_id)}).execute()
-            except Exception:
-                pass  # Player might already exist
+            await self._ensure_player(player_id)
 
         # First create the match
         match_data = {
